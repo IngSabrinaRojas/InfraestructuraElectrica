@@ -1,0 +1,629 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict XSrslz6hbacxj7ah3nlA0v2sAmx8xN4X87Y9lHOPGLv87BOOVwb5tOon9j5js8X
+
+-- Dumped from database version 18.4
+-- Dumped by pg_dump version 18.4
+
+-- Started on 2026-09-10 07:45:14
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- TOC entry 226 (class 1259 OID 34869)
+-- Name: cc; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.cc (
+    idcc integer NOT NULL,
+    nombrecc text NOT NULL,
+    referenciacc text,
+    puntoxcc numeric(15,6),
+    puntoycc numeric(15,6),
+    kvacc numeric(10,2),
+    idtra integer
+);
+
+
+ALTER TABLE public.cc OWNER TO postgres;
+
+--
+-- TOC entry 225 (class 1259 OID 34868)
+-- Name: cc_idcc_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.cc_idcc_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.cc_idcc_seq OWNER TO postgres;
+
+--
+-- TOC entry 5080 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: cc_idcc_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.cc_idcc_seq OWNED BY public.cc.idcc;
+
+
+--
+-- TOC entry 228 (class 1259 OID 34880)
+-- Name: circuito; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.circuito (
+    idcir integer NOT NULL,
+    nombrecir text NOT NULL,
+    tensionpricir text,
+    tensionseccir text,
+    tensiontercir text,
+    puntoubicacioncir text,
+    totalkvacir text,
+    capacidadcir text,
+    idsub integer
+);
+
+
+ALTER TABLE public.circuito OWNER TO postgres;
+
+--
+-- TOC entry 227 (class 1259 OID 34879)
+-- Name: circuito_idcir_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.circuito_idcir_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.circuito_idcir_seq OWNER TO postgres;
+
+--
+-- TOC entry 5081 (class 0 OID 0)
+-- Dependencies: 227
+-- Name: circuito_idcir_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.circuito_idcir_seq OWNED BY public.circuito.idcir;
+
+
+--
+-- TOC entry 220 (class 1259 OID 34836)
+-- Name: estado; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.estado (
+    idest integer NOT NULL,
+    nameest text NOT NULL,
+    siglasest text
+);
+
+
+ALTER TABLE public.estado OWNER TO postgres;
+
+--
+-- TOC entry 219 (class 1259 OID 34835)
+-- Name: estado_idest_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.estado_idest_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.estado_idest_seq OWNER TO postgres;
+
+--
+-- TOC entry 5082 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: estado_idest_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.estado_idest_seq OWNED BY public.estado.idest;
+
+
+--
+-- TOC entry 222 (class 1259 OID 34847)
+-- Name: municipios; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.municipios (
+    idmun integer NOT NULL,
+    nombremun text NOT NULL,
+    idst integer
+);
+
+
+ALTER TABLE public.municipios OWNER TO postgres;
+
+--
+-- TOC entry 221 (class 1259 OID 34846)
+-- Name: municipios_idmun_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.municipios_idmun_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.municipios_idmun_seq OWNER TO postgres;
+
+--
+-- TOC entry 5083 (class 0 OID 0)
+-- Dependencies: 221
+-- Name: municipios_idmun_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.municipios_idmun_seq OWNED BY public.municipios.idmun;
+
+
+--
+-- TOC entry 224 (class 1259 OID 34858)
+-- Name: parroquia; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.parroquia (
+    idpar integer NOT NULL,
+    nombrepar text NOT NULL,
+    idmun integer
+);
+
+
+ALTER TABLE public.parroquia OWNER TO postgres;
+
+--
+-- TOC entry 223 (class 1259 OID 34857)
+-- Name: parroquia_idpar_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.parroquia_idpar_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.parroquia_idpar_seq OWNER TO postgres;
+
+--
+-- TOC entry 5084 (class 0 OID 0)
+-- Dependencies: 223
+-- Name: parroquia_idpar_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.parroquia_idpar_seq OWNED BY public.parroquia.idpar;
+
+
+--
+-- TOC entry 232 (class 1259 OID 34902)
+-- Name: subestaciones; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.subestaciones (
+    idsub integer NOT NULL,
+    nombresub text NOT NULL,
+    idmun integer,
+    referenciasub text,
+    puntoxsub text,
+    puntoysub text,
+    fuentealimentacionsub text
+);
+
+
+ALTER TABLE public.subestaciones OWNER TO postgres;
+
+--
+-- TOC entry 231 (class 1259 OID 34901)
+-- Name: subestaciones_idsub_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.subestaciones_idsub_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.subestaciones_idsub_seq OWNER TO postgres;
+
+--
+-- TOC entry 5085 (class 0 OID 0)
+-- Dependencies: 231
+-- Name: subestaciones_idsub_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.subestaciones_idsub_seq OWNED BY public.subestaciones.idsub;
+
+
+--
+-- TOC entry 230 (class 1259 OID 34891)
+-- Name: tramo; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.tramo (
+    idtra integer NOT NULL,
+    nombretra text NOT NULL,
+    iniciotra text,
+    fintra text,
+    secuenciatra text,
+    sctra text,
+    transformadortra text,
+    totalkvatra numeric(10,2),
+    idcir integer
+);
+
+
+ALTER TABLE public.tramo OWNER TO postgres;
+
+--
+-- TOC entry 229 (class 1259 OID 34890)
+-- Name: tramo_idtra_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.tramo_idtra_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.tramo_idtra_seq OWNER TO postgres;
+
+--
+-- TOC entry 5086 (class 0 OID 0)
+-- Dependencies: 229
+-- Name: tramo_idtra_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.tramo_idtra_seq OWNED BY public.tramo.idtra;
+
+
+--
+-- TOC entry 234 (class 1259 OID 34918)
+-- Name: transformador; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.transformador (
+    idttx integer NOT NULL,
+    capacidadttx numeric(10,2),
+    serialttx text,
+    patrimoniottx text,
+    marcattx text,
+    idcc integer,
+    idest integer,
+    idmun integer,
+    idpar integer,
+    idsub integer,
+    idtra integer,
+    idcir integer
+);
+
+
+ALTER TABLE public.transformador OWNER TO postgres;
+
+--
+-- TOC entry 233 (class 1259 OID 34917)
+-- Name: transformador_idttx_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.transformador_idttx_seq
+    AS integer
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.transformador_idttx_seq OWNER TO postgres;
+
+--
+-- TOC entry 5087 (class 0 OID 0)
+-- Dependencies: 233
+-- Name: transformador_idttx_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.transformador_idttx_seq OWNED BY public.transformador.idttx;
+
+
+--
+-- TOC entry 4894 (class 2604 OID 34872)
+-- Name: cc idcc; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.cc ALTER COLUMN idcc SET DEFAULT nextval('public.cc_idcc_seq'::regclass);
+
+
+--
+-- TOC entry 4895 (class 2604 OID 34883)
+-- Name: circuito idcir; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.circuito ALTER COLUMN idcir SET DEFAULT nextval('public.circuito_idcir_seq'::regclass);
+
+
+--
+-- TOC entry 4891 (class 2604 OID 34839)
+-- Name: estado idest; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.estado ALTER COLUMN idest SET DEFAULT nextval('public.estado_idest_seq'::regclass);
+
+
+--
+-- TOC entry 4892 (class 2604 OID 34850)
+-- Name: municipios idmun; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.municipios ALTER COLUMN idmun SET DEFAULT nextval('public.municipios_idmun_seq'::regclass);
+
+
+--
+-- TOC entry 4893 (class 2604 OID 34861)
+-- Name: parroquia idpar; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.parroquia ALTER COLUMN idpar SET DEFAULT nextval('public.parroquia_idpar_seq'::regclass);
+
+
+--
+-- TOC entry 4897 (class 2604 OID 34905)
+-- Name: subestaciones idsub; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.subestaciones ALTER COLUMN idsub SET DEFAULT nextval('public.subestaciones_idsub_seq'::regclass);
+
+
+--
+-- TOC entry 4896 (class 2604 OID 34894)
+-- Name: tramo idtra; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.tramo ALTER COLUMN idtra SET DEFAULT nextval('public.tramo_idtra_seq'::regclass);
+
+
+--
+-- TOC entry 4898 (class 2604 OID 34921)
+-- Name: transformador idttx; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.transformador ALTER COLUMN idttx SET DEFAULT nextval('public.transformador_idttx_seq'::regclass);
+
+
+--
+-- TOC entry 4906 (class 2606 OID 34878)
+-- Name: cc cc_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.cc
+    ADD CONSTRAINT cc_pkey PRIMARY KEY (idcc);
+
+
+--
+-- TOC entry 4908 (class 2606 OID 34889)
+-- Name: circuito circuito_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.circuito
+    ADD CONSTRAINT circuito_pkey PRIMARY KEY (idcir);
+
+
+--
+-- TOC entry 4900 (class 2606 OID 34845)
+-- Name: estado estado_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.estado
+    ADD CONSTRAINT estado_pkey PRIMARY KEY (idest);
+
+
+--
+-- TOC entry 4902 (class 2606 OID 34856)
+-- Name: municipios municipios_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.municipios
+    ADD CONSTRAINT municipios_pkey PRIMARY KEY (idmun);
+
+
+--
+-- TOC entry 4904 (class 2606 OID 34867)
+-- Name: parroquia parroquia_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.parroquia
+    ADD CONSTRAINT parroquia_pkey PRIMARY KEY (idpar);
+
+
+--
+-- TOC entry 4912 (class 2606 OID 34911)
+-- Name: subestaciones subestaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.subestaciones
+    ADD CONSTRAINT subestaciones_pkey PRIMARY KEY (idsub);
+
+
+--
+-- TOC entry 4910 (class 2606 OID 34900)
+-- Name: tramo tramo_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.tramo
+    ADD CONSTRAINT tramo_pkey PRIMARY KEY (idtra);
+
+
+--
+-- TOC entry 4914 (class 2606 OID 34926)
+-- Name: transformador transformador_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.transformador
+    ADD CONSTRAINT transformador_pkey PRIMARY KEY (idttx);
+
+
+--
+-- TOC entry 4917 (class 2606 OID 34985)
+-- Name: cc fk_cc_tramo; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.cc
+    ADD CONSTRAINT fk_cc_tramo FOREIGN KEY (idtra) REFERENCES public.tramo(idtra) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- TOC entry 4918 (class 2606 OID 34975)
+-- Name: circuito fk_circuito_subestaciones; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.circuito
+    ADD CONSTRAINT fk_circuito_subestaciones FOREIGN KEY (idsub) REFERENCES public.subestaciones(idsub) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- TOC entry 4915 (class 2606 OID 34965)
+-- Name: municipios fk_municipios_estado; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.municipios
+    ADD CONSTRAINT fk_municipios_estado FOREIGN KEY (idst) REFERENCES public.estado(idest) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- TOC entry 4916 (class 2606 OID 34970)
+-- Name: parroquia fk_parroquia_municipio; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.parroquia
+    ADD CONSTRAINT fk_parroquia_municipio FOREIGN KEY (idmun) REFERENCES public.municipios(idmun) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- TOC entry 4919 (class 2606 OID 34980)
+-- Name: tramo fk_tramo_circuito; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.tramo
+    ADD CONSTRAINT fk_tramo_circuito FOREIGN KEY (idcir) REFERENCES public.circuito(idcir) ON UPDATE CASCADE ON DELETE RESTRICT;
+
+
+--
+-- TOC entry 4920 (class 2606 OID 34912)
+-- Name: subestaciones subestaciones_idmun_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.subestaciones
+    ADD CONSTRAINT subestaciones_idmun_fkey FOREIGN KEY (idmun) REFERENCES public.municipios(idmun);
+
+
+--
+-- TOC entry 4921 (class 2606 OID 34927)
+-- Name: transformador transformador_idcc_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.transformador
+    ADD CONSTRAINT transformador_idcc_fkey FOREIGN KEY (idcc) REFERENCES public.cc(idcc);
+
+
+--
+-- TOC entry 4922 (class 2606 OID 34957)
+-- Name: transformador transformador_idcir_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.transformador
+    ADD CONSTRAINT transformador_idcir_fkey FOREIGN KEY (idcir) REFERENCES public.circuito(idcir);
+
+
+--
+-- TOC entry 4923 (class 2606 OID 34932)
+-- Name: transformador transformador_idest_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.transformador
+    ADD CONSTRAINT transformador_idest_fkey FOREIGN KEY (idest) REFERENCES public.estado(idest);
+
+
+--
+-- TOC entry 4924 (class 2606 OID 34937)
+-- Name: transformador transformador_idmun_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.transformador
+    ADD CONSTRAINT transformador_idmun_fkey FOREIGN KEY (idmun) REFERENCES public.municipios(idmun);
+
+
+--
+-- TOC entry 4925 (class 2606 OID 34942)
+-- Name: transformador transformador_idpar_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.transformador
+    ADD CONSTRAINT transformador_idpar_fkey FOREIGN KEY (idpar) REFERENCES public.parroquia(idpar);
+
+
+--
+-- TOC entry 4926 (class 2606 OID 34947)
+-- Name: transformador transformador_idsub_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.transformador
+    ADD CONSTRAINT transformador_idsub_fkey FOREIGN KEY (idsub) REFERENCES public.subestaciones(idsub);
+
+
+--
+-- TOC entry 4927 (class 2606 OID 34952)
+-- Name: transformador transformador_idtra_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.transformador
+    ADD CONSTRAINT transformador_idtra_fkey FOREIGN KEY (idtra) REFERENCES public.tramo(idtra);
+
+
+-- Completed on 2026-09-10 07:45:15
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict XSrslz6hbacxj7ah3nlA0v2sAmx8xN4X87Y9lHOPGLv87BOOVwb5tOon9j5js8X
+

@@ -1,0 +1,1817 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict qS2fVvhme7UuJTPT3uhUKAH4beHmuKoC0GjDsQG9tpd1BqGrxuJdhGb4Mzj5Zw5
+
+-- Dumped from database version 18.4
+-- Dumped by pg_dump version 18.4
+
+-- Started on 2026-09-10 07:44:47
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- TOC entry 227 (class 1255 OID 27756)
+-- Name: Actualizar_totalkva_circuitos(); Type: PROCEDURE; Schema: public; Owner: postgres
+--
+
+CREATE PROCEDURE public."Actualizar_totalkva_circuitos"()
+    LANGUAGE sql
+    AS $$WITH tkvatramos AS(
+  select entidad_tra, sum(totalkva_tra) as totalkva from  tramos group by entidad_tra
+)
+
+update circuitos set totalkva_cir= tkvatramos.totalkva
+from tkvatramos where(key_cir = tkvatramos.entidad_tra);
+$$;
+
+
+ALTER PROCEDURE public."Actualizar_totalkva_circuitos"() OWNER TO postgres;
+
+--
+-- TOC entry 5102 (class 0 OID 0)
+-- Dependencies: 227
+-- Name: PROCEDURE "Actualizar_totalkva_circuitos"(); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON PROCEDURE public."Actualizar_totalkva_circuitos"() IS 'Actualiza el total de kva que tienen los circuitos por tramos asociados';
+
+
+--
+-- TOC entry 228 (class 1255 OID 27757)
+-- Name: Actualizar_totalkva_subestaciones(); Type: PROCEDURE; Schema: public; Owner: postgres
+--
+
+CREATE PROCEDURE public."Actualizar_totalkva_subestaciones"()
+    LANGUAGE sql
+    AS $$WITH tkvacircuitos AS(
+  select entidad_cir, sum(totalkva_cir) as totalkva from  circuitos group by entidad_cir
+)
+
+update subestaciones set totalkva_sub= tkvacircuitos.totalkva
+from tkvacircuitos where(key_sub = tkvacircuitos.entidad_cir);$$;
+
+
+ALTER PROCEDURE public."Actualizar_totalkva_subestaciones"() OWNER TO postgres;
+
+--
+-- TOC entry 5103 (class 0 OID 0)
+-- Dependencies: 228
+-- Name: PROCEDURE "Actualizar_totalkva_subestaciones"(); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON PROCEDURE public."Actualizar_totalkva_subestaciones"() IS 'actualiza el total de kva de una subestacion segun los kva por circuitos que tenga asociado';
+
+
+--
+-- TOC entry 229 (class 1255 OID 27758)
+-- Name: Transferir_circuito(character varying, character varying); Type: PROCEDURE; Schema: public; Owner: postgres
+--
+
+CREATE PROCEDURE public."Transferir_circuito"(IN circuitonew character varying, IN circuitotrans character varying)
+    LANGUAGE sql
+    AS $$
+UPDATE TRAMOS SET
+ENTIDAD_TRA=circuitonew,
+KEY_TRA=CONCAT(circuitonew,CODIGO_TRA)
+WHERE ENTIDAD_TRA=circuitotrans;
+
+UPDATE CIRCUITOS SET
+STATUS_CIR=1
+WHERE KEY_CIR=circuitotrans;
+
+
+$$;
+
+
+ALTER PROCEDURE public."Transferir_circuito"(IN circuitonew character varying, IN circuitotrans character varying) OWNER TO postgres;
+
+--
+-- TOC entry 5104 (class 0 OID 0)
+-- Dependencies: 229
+-- Name: PROCEDURE "Transferir_circuito"(IN circuitonew character varying, IN circuitotrans character varying); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON PROCEDURE public."Transferir_circuito"(IN circuitonew character varying, IN circuitotrans character varying) IS 'tranfiere de un circuito a otro (DE: circuitotrans a circuitonew)';
+
+
+--
+-- TOC entry 230 (class 1255 OID 27759)
+-- Name: actualizar_cantidadtrx_csub(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.actualizar_cantidadtrx_csub() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Actualizar la cantidad de transformadores en caracterizacion_sub
+    UPDATE public.caracterizacion_sub
+    SET cantidadtrx_csub = (
+        SELECT COUNT(*)
+        FROM public.caracterizacion_trans
+        WHERE key_sub = NEW.key_sub
+    )
+    WHERE key_sub = NEW.key_sub;
+
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION public.actualizar_cantidadtrx_csub() OWNER TO postgres;
+
+--
+-- TOC entry 231 (class 1255 OID 27760)
+-- Name: actualizar_totalmva_csub(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.actualizar_totalmva_csub() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- Calcular la sumatoria de onaf_ctrans de los transformadores vinculados a la subestación
+    UPDATE public.caracterizacion_sub
+    SET totalmva_csub = (
+        SELECT COALESCE(SUM(onaf_ctrans), 0)
+        FROM public.caracterizacion_trans
+        WHERE key_sub = NEW.key_sub
+    )
+    WHERE key_sub = NEW.key_sub;
+
+    RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION public.actualizar_totalmva_csub() OWNER TO postgres;
+
+--
+-- TOC entry 243 (class 1255 OID 27761)
+-- Name: soloforzadas_anno_detallada(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.soloforzadas_anno_detallada(param1 integer) RETURNS TABLE(sub character varying, cir character varying, nmes text, mes text, ndi integer, kva numeric, mva numeric, tiempo numeric, frecuencia numeric, tti numeric, promtti numeric, hora text)
+    LANGUAGE plpgsql ROWS 20000
+    AS $$
+BEGIN
+    RETURN QUERY
+		 SELECT 
+ siglassub_eve as sub,
+ siglascir_eve as cir,
+ TO_CHAR(fechainicial_int, 'MM') as nmes,
+ TO_CHAR(fechainicial_int, 'TMMonth')  as mes,
+ count(carga_int)::integer  as ndi,
+ ROUND(sum(carga_int),4) as kva, 
+  ROUND((sum(carga_int)/1000),4) as mkva, 
+ ROUND(sum(tiempo_int),4) as tiempo,
+ ROUND((sum(carga_int/kva_red)),4)  as frecuencia,
+ ROUND((sum(((carga_int*tiempo_int)/kva_red))),4)  as tti,
+ ROUND((avg(((carga_int*tiempo_int)/kva_red))),4) as ttiprom, 
+ CONCAT(CASE WHEN (trunc(sum(ROUND(tiempo_int::numeric, 2)))<10) THEN '0' END,trunc(sum(ROUND(tiempo_int::numeric, 2))) 
+ ,':',CASE WHEN ((round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))<10) 
+ THEN '0' END,(round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))) AS horas
+ 
+FROM interrupciones,redes,eventos
+
+where
+
+operacion_int=operacion_eve and
+periodo_red=red_int and
+
+
+
+substr(causa_int,1,3) in('202','203','204')  and
+EXTRACT(YEAR FROM fechainicial_int::date) =param1 
+
+
+group by siglassub_eve,siglascir_eve,TO_CHAR(fechainicial_int, 'MM'),TO_CHAR(fechainicial_int, 'TMMonth')
+order by 3,1,2 asc;
+	
+	
+		 
+END;
+$$;
+
+
+ALTER FUNCTION public.soloforzadas_anno_detallada(param1 integer) OWNER TO postgres;
+
+--
+-- TOC entry 5105 (class 0 OID 0)
+-- Dependencies: 243
+-- Name: FUNCTION soloforzadas_anno_detallada(param1 integer); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.soloforzadas_anno_detallada(param1 integer) IS 'interrupciones forzadas en un año especifico de forma  detallada por circuito';
+
+
+--
+-- TOC entry 244 (class 1255 OID 27762)
+-- Name: soloforzadas_anno_detalladacomponente(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.soloforzadas_anno_detalladacomponente(param1 integer) RETURNS TABLE(sub character varying, cir character varying, componente text, nmes text, mes text, ndi integer, kva numeric, mva numeric, tiempo numeric, frecuencia numeric, tti numeric, promtti numeric, hora text)
+    LANGUAGE plpgsql ROWS 200000
+    AS $$
+BEGIN
+    RETURN QUERY
+		SELECT 
+ siglassub_eve as sub,
+ siglascir_eve as cir,
+ upper(componente_cau) as componente,
+ TO_CHAR(fechainicial_int, 'MM') as nmes,
+ TO_CHAR(fechainicial_int, 'TMMonth')  as mes,
+ count(carga_int)::integer as ndi,
+ ROUND(sum(carga_int),4) as kva, 
+  ROUND((sum(carga_int)/1000),4) as mkva, 
+ ROUND(sum(tiempo_int),4) as tiempo,
+ ROUND((sum(carga_int/kva_red)),4)  as frecuencia,
+ ROUND((sum(((carga_int*tiempo_int)/kva_red))),4)  as tti,
+ ROUND((avg(((carga_int*tiempo_int)/kva_red))),4) as ttiprom, 
+ CONCAT(CASE WHEN (trunc(sum(ROUND(tiempo_int::numeric, 2)))<10) THEN '0' END,trunc(sum(ROUND(tiempo_int::numeric, 2))) 
+ ,':',CASE WHEN ((round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))<10) 
+ THEN '0' END,(round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))) AS horas
+ 
+FROM interrupciones,redes,eventos,causas
+
+where
+
+operacion_int=operacion_eve and
+periodo_red=red_int and
+componente_cau <>'' and
+
+causa_int=key_cau and 
+
+substr(causa_int,1,3) in('202','203','204')  and
+EXTRACT(YEAR FROM fechainicial_int::date) =param1
+
+group by siglassub_eve,siglascir_eve, componente_cau,TO_CHAR(fechainicial_int, 'MM'),TO_CHAR(fechainicial_int, 'TMMonth')
+order by 3,1,2 asc;
+	
+		 
+END;
+$$;
+
+
+ALTER FUNCTION public.soloforzadas_anno_detalladacomponente(param1 integer) OWNER TO postgres;
+
+--
+-- TOC entry 5106 (class 0 OID 0)
+-- Dependencies: 244
+-- Name: FUNCTION soloforzadas_anno_detalladacomponente(param1 integer); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.soloforzadas_anno_detalladacomponente(param1 integer) IS 'interrupciones forzadas en un año especifico de forma  detallada  poir componente por circuito';
+
+
+--
+-- TOC entry 245 (class 1255 OID 27763)
+-- Name: soloforzadas_anno_detalladaconteo(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.soloforzadas_anno_detalladaconteo(param1 integer) RETURNS TABLE(sub character varying, cir character varying, subcausa character varying, componente text, mes text, ndi integer, kva numeric, mva numeric, tiempo numeric, frecuencia numeric, tti numeric, promtti numeric, hora text)
+    LANGUAGE plpgsql ROWS 200000
+    AS $$
+BEGIN
+    RETURN QUERY
+		SELECT 
+ siglassub_eve as sub,
+ siglascir_eve as cir,
+ descripcion_suc as subcausa,
+ upper(componente_cau) as componente,
+ TO_CHAR(fechainicial_int, 'MM') as mes, 
+ count(fechainicial_int)::integer ndi,
+ 
+ ROUND(sum(carga_int),4) as kva, 
+ ROUND((sum(carga_int)/1000),4) as mkva, 
+ ROUND(sum(tiempo_int),4) as tiempo,
+ ROUND((sum(carga_int/kva_red)),4)  as frecuencia,
+ ROUND((sum(((carga_int*tiempo_int)/kva_red))),4)  as tti,
+ ROUND((avg(((carga_int*tiempo_int)/kva_red))),4) as ttiprom, 
+ CONCAT(CASE WHEN (trunc(sum(ROUND(tiempo_int::numeric, 2)))<10) THEN '0' END,trunc(sum(ROUND(tiempo_int::numeric, 2))) 
+ ,':',CASE WHEN ((round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))<10) 
+ THEN '0' END,(round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))) AS horas
+ 
+FROM interrupciones,redes,eventos,causas,subcausas
+
+where
+
+operacion_int=operacion_eve and
+periodo_red=red_int and
+(substr(causa_int,4,2)=codigo_suc) and
+causa_int=key_cau and 
+
+substr(causa_int,1,3) in('202','203','204')  and
+EXTRACT(YEAR FROM fechainicial_int::date) =param1
+
+group by siglassub_eve,siglascir_eve,descripcion_suc, componente_cau,TO_CHAR(fechainicial_int, 'MM') 
+order by 1,2,3,4,5 asc;
+	
+	
+		 
+END;
+$$;
+
+
+ALTER FUNCTION public.soloforzadas_anno_detalladaconteo(param1 integer) OWNER TO postgres;
+
+--
+-- TOC entry 5107 (class 0 OID 0)
+-- Dependencies: 245
+-- Name: FUNCTION soloforzadas_anno_detalladaconteo(param1 integer); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.soloforzadas_anno_detalladaconteo(param1 integer) IS 'interrupciones forzadas en un año especifico de forma  detallada conteo subcausa y componente por circuito';
+
+
+--
+-- TOC entry 246 (class 1255 OID 27764)
+-- Name: soloforzadas_anno_detalladasubcausa(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.soloforzadas_anno_detalladasubcausa(param1 integer) RETURNS TABLE(sub character varying, cir character varying, subcausa character varying, nmes text, mes text, ndi integer, kva numeric, mva numeric, tiempo numeric, frecuencia numeric, tti numeric, promtti numeric, hora text)
+    LANGUAGE plpgsql ROWS 200000
+    AS $$
+BEGIN
+    RETURN QUERY
+		SELECT 
+ siglassub_eve as sub,
+ siglascir_eve as cir,
+ descripcion_suc as subcausa,
+ TO_CHAR(fechainicial_int, 'MM') as nmes,
+ TO_CHAR(fechainicial_int, 'TMMonth')  as mes,
+ count(carga_int)::integer as ndi,
+ ROUND(sum(carga_int),4) as kva, 
+  ROUND((sum(carga_int)/1000),4) as mkva, 
+ ROUND(sum(tiempo_int),4) as tiempo,
+ ROUND((sum(carga_int/kva_red)),4)  as frecuencia,
+ ROUND((sum(((carga_int*tiempo_int)/kva_red))),4)  as tti,
+ ROUND((avg(((carga_int*tiempo_int)/kva_red))),4) as ttiprom, 
+ CONCAT(CASE WHEN (trunc(sum(ROUND(tiempo_int::numeric, 2)))<10) THEN '0' END,trunc(sum(ROUND(tiempo_int::numeric, 2))) 
+ ,':',CASE WHEN ((round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))<10) 
+ THEN '0' END,(round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))) AS horas
+ 
+FROM interrupciones,redes,eventos,subcausas
+
+where
+
+operacion_int=operacion_eve and
+periodo_red=red_int and
+(substr(causa_int,4,2)=codigo_suc) and
+
+substr(causa_int,1,3) in('202','203','204')  and
+EXTRACT(YEAR FROM fechainicial_int::date) =param1
+
+group by siglassub_eve,siglascir_eve, descripcion_suc,TO_CHAR(fechainicial_int, 'MM'),TO_CHAR(fechainicial_int, 'TMMonth')
+order by 3,1,2 asc;
+	
+	
+		 
+END;
+$$;
+
+
+ALTER FUNCTION public.soloforzadas_anno_detalladasubcausa(param1 integer) OWNER TO postgres;
+
+--
+-- TOC entry 5108 (class 0 OID 0)
+-- Dependencies: 246
+-- Name: FUNCTION soloforzadas_anno_detalladasubcausa(param1 integer); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.soloforzadas_anno_detalladasubcausa(param1 integer) IS 'interrupciones forzadas en un año especifico de forma  detallada por circuito';
+
+
+--
+-- TOC entry 247 (class 1255 OID 27765)
+-- Name: soloforzadas_anno_resumida(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.soloforzadas_anno_resumida(param1 integer) RETURNS TABLE(nmes text, mes text, ndi integer, kva numeric, mva numeric, tiempo numeric, frecuencia numeric, tti numeric, promtti numeric, hora text)
+    LANGUAGE plpgsql ROWS 20000
+    AS $$
+BEGIN
+    RETURN QUERY
+		 SELECT TO_CHAR(fechainicial_int, 'MM') as nmes,
+		 TO_CHAR(fechainicial_int, 'TMMonth')  as mes,
+		 count(carga_int)::integer as ndi,
+		 ROUND(sum(carga_int),4) as kva, 
+		  ROUND((sum(carga_int)/1000),4) as mva, 
+		 ROUND(sum(tiempo_int),4) as tiempo,
+		 ROUND((sum(carga_int/kva_red)),4)  as frecuencia,
+		 ROUND((sum(((carga_int*tiempo_int)/kva_red))),4)  as tti,
+		 ROUND((avg(((carga_int*tiempo_int)/kva_red))),4) as promtti, 
+		 CONCAT(CASE WHEN (trunc(sum(ROUND(tiempo_int::numeric, 2)))<10) THEN '0' END,trunc(sum(ROUND(tiempo_int::numeric, 2))) 
+		 ,':',CASE WHEN ((round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))<10) 
+		 THEN '0' END,(round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))) AS hora
+		 
+		FROM interrupciones,redes
+		where
+		periodo_red=red_int and
+		substr(causa_int,1,3) in('202','203','204')  and
+		EXTRACT(YEAR FROM fechainicial_int::date) =param1
+		group by TO_CHAR(fechainicial_int, 'MM'),TO_CHAR(fechainicial_int, 'TMMonth')
+		order by 1 asc;
+	
+	
+		 
+END;
+$$;
+
+
+ALTER FUNCTION public.soloforzadas_anno_resumida(param1 integer) OWNER TO postgres;
+
+--
+-- TOC entry 5109 (class 0 OID 0)
+-- Dependencies: 247
+-- Name: FUNCTION soloforzadas_anno_resumida(param1 integer); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.soloforzadas_anno_resumida(param1 integer) IS 'interrupciones forzadas en un periodo de fecha especifico de forma resumida';
+
+
+--
+-- TOC entry 248 (class 1255 OID 27766)
+-- Name: soloforzadas_fecha_detallada(date, date); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.soloforzadas_fecha_detallada(param1 date, param2 date) RETURNS TABLE(sub character varying, cir character varying, fecha text, ndi integer, kva numeric, mva numeric, tiempo numeric, frecuencia numeric, tti numeric, promtti numeric, hora text)
+    LANGUAGE plpgsql ROWS 200000
+    AS $$
+BEGIN
+    RETURN QUERY
+		 SELECT 
+ siglassub_eve as sub,
+ siglascir_eve as cir,
+ TO_CHAR(fechainicial_int::date, 'DD-MM-YYYY')  as fecha,
+ count(carga_int)::integer  as ndi,
+ ROUND(sum(carga_int),4) as kva, 
+  ROUND((sum(carga_int)/1000),4) as mkva, 
+ ROUND(sum(tiempo_int),4) as tiempo,
+ ROUND((sum(carga_int/kva_red)),4)  as frecuencia,
+ ROUND((sum(((carga_int*tiempo_int)/kva_red))),4)  as tti,
+ ROUND((avg(((carga_int*tiempo_int)/kva_red))),4) as ttiprom, 
+ CONCAT(CASE WHEN (trunc(sum(ROUND(tiempo_int::numeric, 2)))<10) THEN '0' END,trunc(sum(ROUND(tiempo_int::numeric, 2))) 
+ ,':',CASE WHEN ((round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))<10) 
+ THEN '0' END,(round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))) AS horas
+ 
+FROM interrupciones,redes,eventos
+
+where
+
+operacion_int=operacion_eve and
+periodo_red=red_int and
+
+substr(causa_int,1,3) in('202','203','204')  and
+(fechainicial_int>=param1 and fechainicial_int<=param2) 
+
+group by siglassub_eve,siglascir_eve,fechainicial_int
+order by 3,1,2 asc;
+	
+	
+		 
+END;
+$$;
+
+
+ALTER FUNCTION public.soloforzadas_fecha_detallada(param1 date, param2 date) OWNER TO postgres;
+
+--
+-- TOC entry 5110 (class 0 OID 0)
+-- Dependencies: 248
+-- Name: FUNCTION soloforzadas_fecha_detallada(param1 date, param2 date); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.soloforzadas_fecha_detallada(param1 date, param2 date) IS 'interrupciones forzadas en fecha especifico de forma  detallada por circuito';
+
+
+--
+-- TOC entry 249 (class 1255 OID 27767)
+-- Name: soloforzadas_fecha_detalladacomponente(date, date); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.soloforzadas_fecha_detalladacomponente(param1 date, param2 date) RETURNS TABLE(sub character varying, cir character varying, componente text, fecha text, ndi integer, kva numeric, mva numeric, tiempo numeric, frecuencia numeric, tti numeric, promtti numeric, hora text)
+    LANGUAGE plpgsql ROWS 2e+07
+    AS $$
+BEGIN
+    RETURN QUERY
+		SELECT 
+ siglassub_eve as sub,
+ siglascir_eve as cir,
+ upper(componente_cau) as componente,
+ TO_CHAR(fechainicial_int::date, 'DD-MM-YYYY')  as fecha,
+ count(carga_int)::integer as ndi,
+ ROUND(sum(carga_int),4) as kva, 
+  ROUND((sum(carga_int)/1000),4) as mkva, 
+ ROUND(sum(tiempo_int),4) as tiempo,
+ ROUND((sum(carga_int/kva_red)),4)  as frecuencia,
+ ROUND((sum(((carga_int*tiempo_int)/kva_red))),4)  as tti,
+ ROUND((avg(((carga_int*tiempo_int)/kva_red))),4) as ttiprom, 
+ CONCAT(CASE WHEN (trunc(sum(ROUND(tiempo_int::numeric, 2)))<10) THEN '0' END,trunc(sum(ROUND(tiempo_int::numeric, 2))) 
+ ,':',CASE WHEN ((round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))<10) 
+ THEN '0' END,(round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))) AS horas
+ 
+FROM interrupciones,redes,eventos,causas
+
+where
+
+operacion_int=operacion_eve and
+periodo_red=red_int and
+componente_cau <>'' and
+
+causa_int=key_cau and 
+
+substr(causa_int,1,3) in('202','203','204')  and
+(fechainicial_int>=param1 and fechainicial_int<=param2) 
+
+group by siglassub_eve,siglascir_eve, componente_cau,fechainicial_int
+order by 3,1,2,4 asc;
+	
+		 
+END;
+$$;
+
+
+ALTER FUNCTION public.soloforzadas_fecha_detalladacomponente(param1 date, param2 date) OWNER TO postgres;
+
+--
+-- TOC entry 5111 (class 0 OID 0)
+-- Dependencies: 249
+-- Name: FUNCTION soloforzadas_fecha_detalladacomponente(param1 date, param2 date); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.soloforzadas_fecha_detalladacomponente(param1 date, param2 date) IS 'interrupciones forzadas en una fecha especifica de forma  detallada  poir componente por circuito';
+
+
+--
+-- TOC entry 251 (class 1255 OID 27768)
+-- Name: soloforzadas_fecha_detalladaconteo(date, date); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.soloforzadas_fecha_detalladaconteo(param1 date, param2 date) RETURNS TABLE(sub character varying, cir character varying, subcausa character varying, componente text, fecha text, ndi integer, kva numeric, mva numeric, tiempo numeric, frecuencia numeric, tti numeric, promtti numeric, hora text)
+    LANGUAGE plpgsql ROWS 2e+07
+    AS $$
+BEGIN
+    RETURN QUERY
+		SELECT 
+ siglassub_eve as sub,
+ siglascir_eve as cir,
+ descripcion_suc as subcausa,
+ upper(componente_cau) as componente,
+ TO_CHAR(fechainicial_int::date, 'DD-MM-YYYY')  as fecha,
+ count(fechainicial_int)::integer ndi,
+ 
+ ROUND(sum(carga_int),4) as kva, 
+ ROUND((sum(carga_int)/1000),4) as mkva, 
+ ROUND(sum(tiempo_int),4) as tiempo,
+ ROUND((sum(carga_int/kva_red)),4)  as frecuencia,
+ ROUND((sum(((carga_int*tiempo_int)/kva_red))),4)  as tti,
+ ROUND((avg(((carga_int*tiempo_int)/kva_red))),4) as ttiprom, 
+ CONCAT(CASE WHEN (trunc(sum(ROUND(tiempo_int::numeric, 2)))<10) THEN '0' END,trunc(sum(ROUND(tiempo_int::numeric, 2))) 
+ ,':',CASE WHEN ((round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))<10) 
+ THEN '0' END,(round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))) AS horas
+ 
+FROM interrupciones,redes,eventos,causas,subcausas
+
+where
+
+operacion_int=operacion_eve and
+periodo_red=red_int and
+(substr(causa_int,4,2)=codigo_suc) and
+causa_int=key_cau and 
+
+substr(causa_int,1,3) in('202','203','204')  and
+(fechainicial_int>=param1 and fechainicial_int<=param2) 
+
+group by siglassub_eve,siglascir_eve,descripcion_suc, componente_cau,fechainicial_int
+order by 1,2,3,4,5 asc;
+	
+	
+		 
+END;
+$$;
+
+
+ALTER FUNCTION public.soloforzadas_fecha_detalladaconteo(param1 date, param2 date) OWNER TO postgres;
+
+--
+-- TOC entry 5112 (class 0 OID 0)
+-- Dependencies: 251
+-- Name: FUNCTION soloforzadas_fecha_detalladaconteo(param1 date, param2 date); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.soloforzadas_fecha_detalladaconteo(param1 date, param2 date) IS 'interrupciones forzadas en un fecha especifico de forma  detallada conteo subcausa y componente por circuito';
+
+
+--
+-- TOC entry 252 (class 1255 OID 27769)
+-- Name: soloforzadas_fecha_detalladasubcausa(date, date); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.soloforzadas_fecha_detalladasubcausa(param1 date, param2 date) RETURNS TABLE(sub character varying, cir character varying, subcausa character varying, fecha text, ndi integer, kva numeric, mva numeric, tiempo numeric, frecuencia numeric, tti numeric, promtti numeric, hora text)
+    LANGUAGE plpgsql ROWS 2e+06
+    AS $$
+BEGIN
+    RETURN QUERY
+		SELECT 
+ siglassub_eve as sub,
+ siglascir_eve as cir,
+ descripcion_suc as subcausa,
+  TO_CHAR(fechainicial_int::date, 'DD-MM-YYYY')  as fecha,
+ count(carga_int)::integer as ndi,
+ ROUND(sum(carga_int),4) as kva, 
+  ROUND((sum(carga_int)/1000),4) as mkva, 
+ ROUND(sum(tiempo_int),4) as tiempo,
+ ROUND((sum(carga_int/kva_red)),4)  as frecuencia,
+ ROUND((sum(((carga_int*tiempo_int)/kva_red))),4)  as tti,
+ ROUND((avg(((carga_int*tiempo_int)/kva_red))),4) as ttiprom, 
+ CONCAT(CASE WHEN (trunc(sum(ROUND(tiempo_int::numeric, 2)))<10) THEN '0' END,trunc(sum(ROUND(tiempo_int::numeric, 2))) 
+ ,':',CASE WHEN ((round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))<10) 
+ THEN '0' END,(round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))) AS horas
+ 
+FROM interrupciones,redes,eventos,subcausas
+
+where
+
+operacion_int=operacion_eve and
+periodo_red=red_int and
+(substr(causa_int,4,2)=codigo_suc) and
+
+substr(causa_int,1,3) in('202','203','204')  and
+(fechainicial_int>=param1 and fechainicial_int<=param2) 
+
+group by siglassub_eve,siglascir_eve, descripcion_suc,fechainicial_int
+order by 3,1,2,4 asc;
+	
+	
+		 
+END;
+$$;
+
+
+ALTER FUNCTION public.soloforzadas_fecha_detalladasubcausa(param1 date, param2 date) OWNER TO postgres;
+
+--
+-- TOC entry 5113 (class 0 OID 0)
+-- Dependencies: 252
+-- Name: FUNCTION soloforzadas_fecha_detalladasubcausa(param1 date, param2 date); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.soloforzadas_fecha_detalladasubcausa(param1 date, param2 date) IS 'interrupciones forzadas por fecha especifico de forma  detallada por circuito';
+
+
+--
+-- TOC entry 253 (class 1255 OID 27770)
+-- Name: soloforzadas_fecha_resumida(date, date); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.soloforzadas_fecha_resumida(param1 date, param2 date) RETURNS TABLE(fecha text, ndi integer, kva numeric, mva numeric, tiempo numeric, frecuencia numeric, tti numeric, promtti numeric, hora text)
+    LANGUAGE plpgsql ROWS 20000
+    AS $$
+BEGIN
+    RETURN QUERY
+	select 
+		 TO_CHAR(fechainicial_int::date, 'DD-MM-YYYY')  as fecha,
+		 count(carga_int)::integer as ndi,
+		 ROUND(sum(carga_int),4) as kva, 
+		  ROUND((sum(carga_int)/1000),4) as mva, 
+		 ROUND(sum(tiempo_int),4) as tiempo,
+		 ROUND((sum(carga_int/kva_red)),4)  as frecuencia,
+		 ROUND((sum(((carga_int*tiempo_int)/kva_red))),4)  as tti,
+		 ROUND((avg(((carga_int*tiempo_int)/kva_red))),4) as promtti, 
+		 CONCAT(CASE WHEN (trunc(sum(ROUND(tiempo_int::numeric, 2)))<10) THEN '0' END,trunc(sum(ROUND(tiempo_int::numeric, 2))) 
+		 ,':',CASE WHEN ((round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))<10) 
+		 THEN '0' END,(round(((sum(ROUND(tiempo_int::numeric, 2))-trunc(sum(ROUND(tiempo_int::numeric, 2))))*60),0))) AS hora
+		 
+		FROM interrupciones,redes
+		where
+		periodo_red=red_int and
+		substr(causa_int,1,3) in('202','203','204')  and
+		(fechainicial_int>=param1 and fechainicial_int<=param2) 
+		group by fechainicial_int
+		order by 1 asc;
+	
+	
+		 
+END;
+$$;
+
+
+ALTER FUNCTION public.soloforzadas_fecha_resumida(param1 date, param2 date) OWNER TO postgres;
+
+--
+-- TOC entry 254 (class 1255 OID 27771)
+-- Name: tablatira_interrupciones(date, date); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.tablatira_interrupciones(param1 date, param2 date) RETURNS TABLE(id1 character varying, id2 text, id3 character varying, id4 text, id5 character varying, id6 text, id7 text, id8 text, id9 timestamp without time zone, id10 timestamp without time zone, id11 character varying, id12 character varying, id13 text, id14 text, id15 text, id16 text, id17 numeric, id18 numeric, id19 numeric, id20 numeric, id21 character varying, id22 character varying, id23 numeric, id24 numeric, id25 numeric, id26 numeric, id27 numeric, id28 numeric, id29 text)
+    LANGUAGE plpgsql ROWS 200000
+    AS $$
+BEGIN
+ SET TIME ZONE 'America/Caracas';
+    RETURN QUERY
+		select descripcion_are as id1,concat(to_char(fechainicial_int, 'DD/MM/YYYY')) as id2,descripcion_sis as id3,
+		'Nueva Esparta Porlamar' as id4, descripcion_sub as id5, 
+		upper(descripcion_mun) as id6,
+		substring(siglascir_eve, 6, 100) as id7,substring(siglascir_eve, 1, 2) as id8,
+		
+		(fechainicial_int|| ' ' || horainicial_eve)::timestamp without time zone  AS id9, 
+		(fechafinal_int|| ' ' || horafinal_eve) ::timestamp without time zone AS id10,
+		siglasini_eve as id11, siglasfin_eve as id12,
+		
+		LPAD(TO_CHAR(FLOOR(EXTRACT(EPOCH FROM AGE(
+		to_timestamp(concat(TO_CHAR(fechafinal_eve::DATE, 'dd/mm/yyyy'),' ',to_char(to_timestamp(horafinal_eve, 'HH24:MI'),'HH24:MI')),'dd/mm/yyy HH24:MI'),
+		to_timestamp(concat(TO_CHAR(fechainicial_eve::DATE, 'dd/mm/yyyy'),' ',to_char(to_timestamp(horainicial_eve, 'HH24:MI'),'HH24:MI')),'dd/mm/yyy HH24:MI')))/3600),'FM00'),2,'0')||':'||
+		
+		LPAD(TO_CHAR(FLOOR(EXTRACT(EPOCH FROM AGE(
+		to_timestamp(concat(TO_CHAR(fechafinal_eve::DATE, 'dd/mm/yyyy'),' ',to_char(to_timestamp(horafinal_eve, 'HH24:MI'),'HH24:MI')),'dd/mm/yyy HH24:MI'),
+		to_timestamp(concat(TO_CHAR(fechainicial_eve::DATE, 'dd/mm/yyyy'),' ',to_char(to_timestamp(horainicial_eve, 'HH24:MI'),'HH24:MI')),'dd/mm/yyy HH24:MI')))/60 %60),'FM00'),2,'0')||':00' AS id13,
+		case servicio_cir when 'B' then 'CS B PAMPATAR' else 'CS C JUANGRIEGO' end as id14,
+		TO_CHAR(fechainicial_eve::DATE, 'mm') as id15,
+		TO_CHAR(fechainicial_eve::DATE, 'yyyy') as id16,
+		
+		ROUND(carga_eve::numeric, 2) as id17,ROUND((carga_eve/kva_red)::numeric, 4) as id18,
+		ROUND(tiempo_eve::numeric, 2) as id19,ROUND(((tiempo_eve*carga_eve)/kva_red), 4) as id20,
+		
+		causatexto_int as id21,descripcion_suc as id22,kva_red as id23,
+		ROUND((tiempo_eve*carga_eve)::numeric, 2) as id24,
+		
+		
+		case when carga_eve >500 then ROUND(carga_eve::numeric, 2) else 0.00 end as id25,
+		case when carga_eve <=500 then ROUND(carga_eve::numeric, 2) else 0.00 end as id26,
+		case when carga_eve >500 then ROUND((tiempo_eve*carga_eve)::numeric, 2) else 0.00 end as id27,
+		case when carga_eve <=500 then ROUND((tiempo_eve*carga_eve)::numeric, 2) else 0.00 end as id28,
+		case tipo_sub when 2 then '34.5' else '115' end AS id29
+		/*ROUND((nivel_sub*carga_eve)::numeric, 0) as id29*/
+
+from interrupciones,eventos,redes,areas,sistemas,subestaciones,subcausas,municipios,circuitos
+where operacion_int=operacion_eve and status_int=2 and red_int=periodo_red and
+codigo_are=substring(causa_int, 1, 1) and codigo_sis=substring(causa_int, 2, 2) and 
+codigo_suc=substring(causa_int, 4, 2) and key_mun=substring(subestacion_eve, 1, 4) and
+key_cir=circuito_eve and key_sub=subestacion_eve and
+fechainicial_int>=param1 and fechainicial_int<=param2;
+END;
+$$;
+
+
+ALTER FUNCTION public.tablatira_interrupciones(param1 date, param2 date) OWNER TO postgres;
+
+--
+-- TOC entry 5114 (class 0 OID 0)
+-- Dependencies: 254
+-- Name: FUNCTION tablatira_interrupciones(param1 date, param2 date); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.tablatira_interrupciones(param1 date, param2 date) IS 'TABLA TIRA DE INTERRUPCIONES SEGUN ENTIDAD NE';
+
+
+--
+-- TOC entry 250 (class 1255 OID 27772)
+-- Name: tablatiracxc_interrupciones(date, date); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.tablatiracxc_interrupciones(param1 date, param2 date) RETURNS TABLE(id1 text, id2 character varying, id3 text, id4 character varying, id5 character varying, id6 text, id7 text, id8 character varying, id9 text, id10 text, id11 text, id12 text, id13 text, id14 text, id15 numeric, id16 numeric, id17 numeric, id18 numeric, id19 numeric, id20 text, id21 text, id22 text)
+    LANGUAGE plpgsql ROWS 200000
+    AS $$
+BEGIN
+    RETURN QUERY
+		select substr(siglascir_eve,1,2) AS id1, 
+		descripcion_sub  AS id2,
+		concat(TO_CHAR(fechainicial_eve::DATE, 'dd/mm/yyyy'),' ',horainicial_eve)  AS id3,
+		descripcion_sis as id4,
+		descripcion_are as id5,
+		upper(causatexto_int)  AS id6,
+		'' AS id7,
+		descripcion_suc  AS id8,
+		'ALIMENTADOR'  AS id9,	
+		'AFECTACION DEL SERVICIO ELECTRICO'  AS id10,
+		LPAD(TO_CHAR(FLOOR(EXTRACT(EPOCH FROM AGE(
+		to_timestamp(concat(TO_CHAR(fechafinal_eve::DATE, 'dd/mm/yyyy'),' ',to_char(to_timestamp(horafinal_eve, 'HH24:MI'),'HH24:MI')),'dd/mm/yyy HH24:MI'),
+		to_timestamp(concat(TO_CHAR(fechainicial_eve::DATE, 'dd/mm/yyyy'),' ',to_char(to_timestamp(horainicial_eve, 'HH24:MI'),'HH24:MI')),'dd/mm/yyy HH24:MI')))/3600),'FM00'),2,'0')||':'||
+		
+		LPAD(TO_CHAR(FLOOR(EXTRACT(EPOCH FROM AGE(
+		to_timestamp(concat(TO_CHAR(fechafinal_eve::DATE, 'dd/mm/yyyy'),' ',to_char(to_timestamp(horafinal_eve, 'HH24:MI'),'HH24:MI')),'dd/mm/yyy HH24:MI'),
+		to_timestamp(concat(TO_CHAR(fechainicial_eve::DATE, 'dd/mm/yyyy'),' ',to_char(to_timestamp(horainicial_eve, 'HH24:MI'),'HH24:MI')),'dd/mm/yyy HH24:MI')))/60 %60),'FM00'),2,'0')||':00' AS id11,
+		'' as id12,
+		TO_CHAR(fechainicial_eve::DATE, 'mm')  AS id13,
+		TO_CHAR(fechainicial_eve::DATE, 'yyyy')  AS id14,
+		ROUND(tiempo_eve::numeric, 4)  AS id15,
+		ROUND(kva_red::numeric, 2) AS id16,
+		ROUND(carga_eve::numeric, 2) AS id17,
+		ROUND((carga_eve/kva_red)::numeric, 4) AS id18,
+		ROUND(((tiempo_eve*carga_eve)/kva_red), 4) AS id19,
+		case servicio_cir when 'B' then 'CS B PAMPATAR' else 'CS C JUANGRIEGO' end AS id20, 
+		'' AS id21,
+		upper(descripcion_cir) AS id22
+		
+
+from interrupciones,eventos,redes,areas,sistemas,subestaciones,subcausas,municipios,circuitos
+where operacion_int=operacion_eve and status_int=2 and red_int=periodo_red and
+codigo_are=substring(causa_int, 1, 1) and codigo_sis=substring(causa_int, 2, 2) and 
+codigo_suc=substring(causa_int, 4, 2) and key_mun=substring(subestacion_eve, 1, 4) and
+key_cir=circuito_eve and key_sub=subestacion_eve and
+fechainicial_int>=param1 and fechainicial_int<=param2;
+END;
+$$;
+
+
+ALTER FUNCTION public.tablatiracxc_interrupciones(param1 date, param2 date) OWNER TO postgres;
+
+--
+-- TOC entry 5115 (class 0 OID 0)
+-- Dependencies: 250
+-- Name: FUNCTION tablatiracxc_interrupciones(param1 date, param2 date); Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON FUNCTION public.tablatiracxc_interrupciones(param1 date, param2 date) IS 'TABLA TIRA DE INTERRUPCIONES SEGUN CARACAS';
+
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- TOC entry 219 (class 1259 OID 27390)
+-- Name: circuitos; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.circuitos (
+    entidad_cir character varying(7) NOT NULL,
+    codigo_cir character varying(2) NOT NULL,
+    descripcion_cir character varying(50) NOT NULL,
+    tensionpri_cir integer DEFAULT 0,
+    tensionsec_cir integer DEFAULT 0,
+    tensionter_cir integer DEFAULT 0,
+    tipocircuito_cir integer DEFAULT 0,
+    servicio_cir character varying(2) NOT NULL,
+    sectores_cir text DEFAULT ''::text,
+    status_cir integer DEFAULT 0,
+    key_cir character varying(9) NOT NULL,
+    barra_cir character varying(15),
+    observacion_cir character varying(200),
+    municipio_cir character varying(4),
+    fecha_cir date,
+    totalkva_cir numeric(28,0) DEFAULT 0.00,
+    capacidad_cir numeric(28,0) DEFAULT 0.00
+);
+
+
+ALTER TABLE public.circuitos OWNER TO postgres;
+
+--
+-- TOC entry 5116 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: TABLE circuitos; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.circuitos IS 'Tabla almacena los datos de las causas de interrucciones';
+
+
+--
+-- TOC entry 5117 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.entidad_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.entidad_cir IS 'codigo de la entidad';
+
+
+--
+-- TOC entry 5118 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.codigo_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.codigo_cir IS 'codigo del  circuito';
+
+
+--
+-- TOC entry 5119 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.descripcion_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.descripcion_cir IS 'descripcion del  circuito';
+
+
+--
+-- TOC entry 5120 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.tensionpri_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.tensionpri_cir IS 'tension KV de entrada al circuito 0=115, 1=34.5 Kv; 2=13.8 Kv, 3=0.48';
+
+
+--
+-- TOC entry 5121 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.tensionsec_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.tensionsec_cir IS 'este campo no se esta utilizando';
+
+
+--
+-- TOC entry 5122 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.tensionter_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.tensionter_cir IS 'este campo no se esta utilizando';
+
+
+--
+-- TOC entry 5123 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.tipocircuito_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.tipocircuito_cir IS 'tipo de circuito 0=aereo, 1=subterraneo, 2=mixto';
+
+
+--
+-- TOC entry 5124 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.servicio_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.servicio_cir IS 'codigo del ente reponsable por su mantenimiento';
+
+
+--
+-- TOC entry 5125 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.sectores_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.sectores_cir IS 'detalle de los sectores que corresponden';
+
+
+--
+-- TOC entry 5126 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.status_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.status_cir IS '0= Operativo 1=Transferido del circuito';
+
+
+--
+-- TOC entry 5127 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.key_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.key_cir IS 'codigo entidad + codigo';
+
+
+--
+-- TOC entry 5128 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.barra_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.barra_cir IS 'numero de la barra donde esta asignado';
+
+
+--
+-- TOC entry 5129 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.observacion_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.observacion_cir IS 'descripcion u observacion de la transferencia';
+
+
+--
+-- TOC entry 5130 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.municipio_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.municipio_cir IS 'codigo del municipio donde predomina u origen del circuito';
+
+
+--
+-- TOC entry 5131 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.fecha_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.fecha_cir IS 'fecha  de creado en el sistema del circuito';
+
+
+--
+-- TOC entry 5132 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.totalkva_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.totalkva_cir IS 'total kva del circuito';
+
+
+--
+-- TOC entry 5133 (class 0 OID 0)
+-- Dependencies: 219
+-- Name: COLUMN circuitos.capacidad_cir; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.circuitos.capacidad_cir IS 'almacena la capacidad nominal del circuito segun el calibre cable';
+
+
+--
+-- TOC entry 220 (class 1259 OID 27408)
+-- Name: cortacorrientes; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.cortacorrientes (
+    entidad_cor character varying(24) NOT NULL,
+    codigo_cor character varying(20) NOT NULL,
+    referencia_cor character varying(80) DEFAULT '0'::character varying,
+    puntox_cor character varying(30) DEFAULT '0'::character varying,
+    puntoy_cor character varying(30) DEFAULT '0'::character varying,
+    cantidada_cor integer DEFAULT 0,
+    cantidadb_cor integer DEFAULT 0,
+    cantidadc_cor integer DEFAULT 0,
+    kvaa_cor numeric(28,4) DEFAULT 0,
+    kvab_cor numeric(28,4) DEFAULT 0,
+    kvac_cor numeric(28,4) DEFAULT 0,
+    status_cor integer DEFAULT 0
+);
+
+
+ALTER TABLE public.cortacorrientes OWNER TO postgres;
+
+--
+-- TOC entry 5134 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: TABLE cortacorrientes; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.cortacorrientes IS 'Tabla almacena los datos de los corta corrientes del sistema';
+
+
+--
+-- TOC entry 5135 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.entidad_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.entidad_cor IS 'codigo de la entidad';
+
+
+--
+-- TOC entry 5136 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.codigo_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.codigo_cor IS 'codigo de CC';
+
+
+--
+-- TOC entry 5137 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.referencia_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.referencia_cor IS 'referencia del CC';
+
+
+--
+-- TOC entry 5138 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.puntox_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.puntox_cor IS 'coordenadas georeferencial X del CC';
+
+
+--
+-- TOC entry 5139 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.puntoy_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.puntoy_cor IS 'coordenadas georeferencial Y del CC';
+
+
+--
+-- TOC entry 5140 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.cantidada_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.cantidada_cor IS 'total transformadores tipo a';
+
+
+--
+-- TOC entry 5141 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.cantidadb_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.cantidadb_cor IS 'total transformadores tipo b';
+
+
+--
+-- TOC entry 5142 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.cantidadc_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.cantidadc_cor IS 'total transformadores tipo c';
+
+
+--
+-- TOC entry 5143 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.kvaa_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.kvaa_cor IS 'kva modelo transformadores tipo a';
+
+
+--
+-- TOC entry 5144 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.kvab_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.kvab_cor IS 'kva modelo transformadores tipo b';
+
+
+--
+-- TOC entry 5145 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.kvac_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.kvac_cor IS 'kva modelo transformadores tipo c';
+
+
+--
+-- TOC entry 5146 (class 0 OID 0)
+-- Dependencies: 220
+-- Name: COLUMN cortacorrientes.status_cor; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.cortacorrientes.status_cor IS '0= Activo 1=Inactivo en la subestacion';
+
+
+--
+-- TOC entry 221 (class 1259 OID 27423)
+-- Name: dattransformadores; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.dattransformadores (
+    cc_tra character varying(30) NOT NULL,
+    ndp_tra character varying(80) NOT NULL,
+    marca_tra character varying(80) NOT NULL,
+    serial_tra character varying(80) NOT NULL,
+    capacidad_tra numeric(28,4) DEFAULT 0
+);
+
+
+ALTER TABLE public.dattransformadores OWNER TO postgres;
+
+--
+-- TOC entry 5147 (class 0 OID 0)
+-- Dependencies: 221
+-- Name: TABLE dattransformadores; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.dattransformadores IS 'Tabla almacena los datos de los transformadores';
+
+
+--
+-- TOC entry 5148 (class 0 OID 0)
+-- Dependencies: 221
+-- Name: COLUMN dattransformadores.cc_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.dattransformadores.cc_tra IS 'codigo cortacorriente del transformador';
+
+
+--
+-- TOC entry 5149 (class 0 OID 0)
+-- Dependencies: 221
+-- Name: COLUMN dattransformadores.ndp_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.dattransformadores.ndp_tra IS 'numero de bien nacional transformador.';
+
+
+--
+-- TOC entry 5150 (class 0 OID 0)
+-- Dependencies: 221
+-- Name: COLUMN dattransformadores.marca_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.dattransformadores.marca_tra IS 'marca del transformador.';
+
+
+--
+-- TOC entry 5151 (class 0 OID 0)
+-- Dependencies: 221
+-- Name: COLUMN dattransformadores.serial_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.dattransformadores.serial_tra IS 'serial del transformador.';
+
+
+--
+-- TOC entry 5152 (class 0 OID 0)
+-- Dependencies: 221
+-- Name: COLUMN dattransformadores.capacidad_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.dattransformadores.capacidad_tra IS 'capacidad kva transformador.';
+
+
+--
+-- TOC entry 222 (class 1259 OID 27464)
+-- Name: estados; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.estados (
+    codigo_est character varying(2) NOT NULL,
+    descripcion_est character varying(50) NOT NULL,
+    siglas_est character varying(5) DEFAULT NULL::character varying
+);
+
+
+ALTER TABLE public.estados OWNER TO postgres;
+
+--
+-- TOC entry 5153 (class 0 OID 0)
+-- Dependencies: 222
+-- Name: TABLE estados; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.estados IS 'Tabla almacena los datos de los estados de venezuela';
+
+
+--
+-- TOC entry 5154 (class 0 OID 0)
+-- Dependencies: 222
+-- Name: COLUMN estados.codigo_est; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.estados.codigo_est IS 'codigo del estado';
+
+
+--
+-- TOC entry 5155 (class 0 OID 0)
+-- Dependencies: 222
+-- Name: COLUMN estados.descripcion_est; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.estados.descripcion_est IS 'descripcion del estado';
+
+
+--
+-- TOC entry 5156 (class 0 OID 0)
+-- Dependencies: 222
+-- Name: COLUMN estados.siglas_est; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.estados.siglas_est IS 'siglas del estado';
+
+
+--
+-- TOC entry 223 (class 1259 OID 27576)
+-- Name: municipios; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.municipios (
+    estado_mun character varying(2) NOT NULL,
+    codigo_mun character varying(2) NOT NULL,
+    descripcion_mun character varying(50) NOT NULL,
+    key_mun character varying(4) NOT NULL
+);
+
+
+ALTER TABLE public.municipios OWNER TO postgres;
+
+--
+-- TOC entry 5157 (class 0 OID 0)
+-- Dependencies: 223
+-- Name: TABLE municipios; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.municipios IS 'Tabla almacena los nombrees de los municipios por estado en venezuela';
+
+
+--
+-- TOC entry 5158 (class 0 OID 0)
+-- Dependencies: 223
+-- Name: COLUMN municipios.estado_mun; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.municipios.estado_mun IS 'codigo del estado';
+
+
+--
+-- TOC entry 5159 (class 0 OID 0)
+-- Dependencies: 223
+-- Name: COLUMN municipios.codigo_mun; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.municipios.codigo_mun IS 'codigo del municipio';
+
+
+--
+-- TOC entry 5160 (class 0 OID 0)
+-- Dependencies: 223
+-- Name: COLUMN municipios.descripcion_mun; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.municipios.descripcion_mun IS 'descripcion del municipio';
+
+
+--
+-- TOC entry 5161 (class 0 OID 0)
+-- Dependencies: 223
+-- Name: COLUMN municipios.key_mun; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.municipios.key_mun IS 'estado+municipio';
+
+
+--
+-- TOC entry 224 (class 1259 OID 27596)
+-- Name: parroquias; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.parroquias (
+    entidad_par character varying(4) NOT NULL,
+    codigo_par character varying(2) NOT NULL,
+    descripcion_par character varying(80) NOT NULL,
+    key_par character varying(6) NOT NULL
+);
+
+
+ALTER TABLE public.parroquias OWNER TO postgres;
+
+--
+-- TOC entry 5162 (class 0 OID 0)
+-- Dependencies: 224
+-- Name: TABLE parroquias; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.parroquias IS 'Tabla almacena los nombre de las paqrroquias por estado en venezuela';
+
+
+--
+-- TOC entry 5163 (class 0 OID 0)
+-- Dependencies: 224
+-- Name: COLUMN parroquias.entidad_par; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.parroquias.entidad_par IS 'codigo de la entidad';
+
+
+--
+-- TOC entry 5164 (class 0 OID 0)
+-- Dependencies: 224
+-- Name: COLUMN parroquias.codigo_par; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.parroquias.codigo_par IS 'codigo de la parroquia';
+
+
+--
+-- TOC entry 5165 (class 0 OID 0)
+-- Dependencies: 224
+-- Name: COLUMN parroquias.descripcion_par; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.parroquias.descripcion_par IS 'descripcion de la parroquia';
+
+
+--
+-- TOC entry 5166 (class 0 OID 0)
+-- Dependencies: 224
+-- Name: COLUMN parroquias.key_par; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.parroquias.key_par IS 'entidad+municipio+parroqui';
+
+
+--
+-- TOC entry 225 (class 1259 OID 27634)
+-- Name: subestaciones; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.subestaciones (
+    entidad_sub character varying(4) NOT NULL,
+    codigo_sub character varying(3) NOT NULL,
+    descripcion_sub character varying(50) NOT NULL,
+    siglas_sub character varying(10) NOT NULL,
+    ubicacion_sub character varying(80) DEFAULT NULL::character varying,
+    referencia_sub character varying(50) DEFAULT NULL::character varying,
+    puntox_sub character varying(20) DEFAULT '0'::character varying,
+    puntoy_sub character varying(20) DEFAULT '0'::character varying,
+    k13_sub integer DEFAULT 1,
+    k34_sub integer DEFAULT 1,
+    k115_sub integer DEFAULT 1,
+    tipo_sub integer DEFAULT 0,
+    status_sub integer DEFAULT 0,
+    key_sub character varying(7) NOT NULL,
+    totalkva_sub numeric(28,4) DEFAULT 0,
+    nivel_sub numeric(10,2) DEFAULT 0,
+    usuario_sub character varying(15),
+    fecha_sub date,
+    alimentacion_sub character varying(80)
+);
+
+
+ALTER TABLE public.subestaciones OWNER TO postgres;
+
+--
+-- TOC entry 5167 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: TABLE subestaciones; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.subestaciones IS 'Tabla almacena los datos de las subestaciones';
+
+
+--
+-- TOC entry 5168 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.entidad_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.entidad_sub IS 'codigo del entidad';
+
+
+--
+-- TOC entry 5169 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.codigo_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.codigo_sub IS 'codigo de la subestacion';
+
+
+--
+-- TOC entry 5170 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.descripcion_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.descripcion_sub IS 'descripcion subestacion';
+
+
+--
+-- TOC entry 5171 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.siglas_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.siglas_sub IS 'siglas subestacion';
+
+
+--
+-- TOC entry 5172 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.ubicacion_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.ubicacion_sub IS 'ubicacion subestacion';
+
+
+--
+-- TOC entry 5173 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.referencia_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.referencia_sub IS 'referencia  subestacion';
+
+
+--
+-- TOC entry 5174 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.puntox_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.puntox_sub IS 'coordsenada x  subestacion';
+
+
+--
+-- TOC entry 5175 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.puntoy_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.puntoy_sub IS 'coordenada y subestacion';
+
+
+--
+-- TOC entry 5176 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.k13_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.k13_sub IS 'tension primaria:
+ 0 =115, 1=34.5 Kv; 2=13.8 Kv, 3=0.48';
+
+
+--
+-- TOC entry 5177 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.k34_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.k34_sub IS 'tension secundaria:
+0=Ninguno; 1 =115, 2=34.5 Kv; 3=13.8 Kv, 4=0.48';
+
+
+--
+-- TOC entry 5178 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.k115_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.k115_sub IS 'tension terciaria:
+0=Ninguno; 1 =115, 2=34.5 Kv; 3=13.8 Kv, 4=0.48';
+
+
+--
+-- TOC entry 5179 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.tipo_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.tipo_sub IS 'Tipo Subestación: 0=Generación. 1=Transmisión. 2=Distribución.  ';
+
+
+--
+-- TOC entry 5180 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.status_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.status_sub IS '0= Operativo 1= No Operativo';
+
+
+--
+-- TOC entry 5181 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.key_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.key_sub IS 'codigo entidad+codigo';
+
+
+--
+-- TOC entry 5182 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.totalkva_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.totalkva_sub IS 'Total de Kva sub estacion';
+
+
+--
+-- TOC entry 5183 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.nivel_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.nivel_sub IS 'contienen el area cuadrada de la sub estacion';
+
+
+--
+-- TOC entry 5184 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.fecha_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.fecha_sub IS 'contiene la fecha de creada la subestacion';
+
+
+--
+-- TOC entry 5185 (class 0 OID 0)
+-- Dependencies: 225
+-- Name: COLUMN subestaciones.alimentacion_sub; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.subestaciones.alimentacion_sub IS 'alimentacion de la subestacion';
+
+
+--
+-- TOC entry 226 (class 1259 OID 27653)
+-- Name: tramos; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.tramos (
+    entidad_tra character varying(9) NOT NULL,
+    codigo_tra character varying(15) NOT NULL,
+    inicio_tra character varying(6) NOT NULL,
+    fin_tra character varying(6) NOT NULL,
+    secuencia_tra integer DEFAULT 1,
+    sc_tra character varying(50) NOT NULL,
+    cc_tra integer DEFAULT 1,
+    tranformador_tra integer DEFAULT 0,
+    totalkva_tra numeric(28,4) DEFAULT 0,
+    status_tra integer DEFAULT 0,
+    key_tra character varying(24) NOT NULL
+);
+
+
+ALTER TABLE public.tramos OWNER TO postgres;
+
+--
+-- TOC entry 5186 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: TABLE tramos; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE public.tramos IS 'Tabla almacena los datos de los tramos';
+
+
+--
+-- TOC entry 5187 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.entidad_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.entidad_tra IS 'codigo de la entidad';
+
+
+--
+-- TOC entry 5188 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.codigo_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.codigo_tra IS 'codigo del  tramo';
+
+
+--
+-- TOC entry 5189 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.inicio_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.inicio_tra IS 'siglas tramo inicial';
+
+
+--
+-- TOC entry 5190 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.fin_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.fin_tra IS 'siglas tramo final';
+
+
+--
+-- TOC entry 5191 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.secuencia_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.secuencia_tra IS 'numero de secuencia 1..n (100) ramificacion';
+
+
+--
+-- TOC entry 5192 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.sc_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.sc_tra IS 'codigo seccionadora';
+
+
+--
+-- TOC entry 5193 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.cc_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.cc_tra IS 'tiene cc 0=  si 1=no';
+
+
+--
+-- TOC entry 5194 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.tranformador_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.tranformador_tra IS 'total transformadores';
+
+
+--
+-- TOC entry 5195 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.totalkva_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.totalkva_tra IS 'total kva transformadores';
+
+
+--
+-- TOC entry 5196 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.status_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.status_tra IS '0= Activo 1=Inactivo en la subestacion';
+
+
+--
+-- TOC entry 5197 (class 0 OID 0)
+-- Dependencies: 226
+-- Name: COLUMN tramos.key_tra; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.tramos.key_tra IS 'codigo entidad + codigo_tra';
+
+
+--
+-- TOC entry 4937 (class 2606 OID 27714)
+-- Name: circuitos circuitos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.circuitos
+    ADD CONSTRAINT circuitos_pkey PRIMARY KEY (key_cir);
+
+
+--
+-- TOC entry 4939 (class 2606 OID 27716)
+-- Name: cortacorrientes cortacorrientes_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.cortacorrientes
+    ADD CONSTRAINT cortacorrientes_pkey PRIMARY KEY (codigo_cor);
+
+
+--
+-- TOC entry 4941 (class 2606 OID 27718)
+-- Name: estados estados_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.estados
+    ADD CONSTRAINT estados_pkey PRIMARY KEY (codigo_est);
+
+
+--
+-- TOC entry 4943 (class 2606 OID 27734)
+-- Name: municipios municipios_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.municipios
+    ADD CONSTRAINT municipios_pkey PRIMARY KEY (key_mun);
+
+
+--
+-- TOC entry 4945 (class 2606 OID 27740)
+-- Name: parroquias parroquias_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.parroquias
+    ADD CONSTRAINT parroquias_pkey PRIMARY KEY (key_par);
+
+
+--
+-- TOC entry 4947 (class 2606 OID 27748)
+-- Name: subestaciones subestaciones_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.subestaciones
+    ADD CONSTRAINT subestaciones_pkey PRIMARY KEY (key_sub);
+
+
+--
+-- TOC entry 4949 (class 2606 OID 27752)
+-- Name: tramos tramos_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.tramos
+    ADD CONSTRAINT tramos_pkey PRIMARY KEY (key_tra);
+
+
+-- Completed on 2026-09-10 07:44:48
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict qS2fVvhme7UuJTPT3uhUKAH4beHmuKoC0GjDsQG9tpd1BqGrxuJdhGb4Mzj5Zw5
+
